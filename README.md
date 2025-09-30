@@ -94,18 +94,3 @@ pytest tests/ -v --cov=app
 cd frontend
 npm test
 ```
-
-## Performance Targets
-
-- API response time: < 500ms (cached), < 3s (uncached)
-- Classification accuracy: > 85% based on user feedback
-- Cache hit rate: > 70%
-- Cost per 1000 emails: < $0.50
-
-## License
-
-MIT
-
-## Contributing
-
-Contributions welcome! Please open an issue or submit a pull request.
