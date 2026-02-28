@@ -10,6 +10,10 @@ from app.schemas.email import (  # noqa: F401
     EmailListResponse,
     EmailResponse,
 )
+from app.schemas.claude import (  # noqa: F401
+    BatchClassificationResponse,
+    SingleEmailClassification,
+)
 from app.schemas.user import (  # noqa: F401
     UserCreate,
     UserPreferenceResponse,
