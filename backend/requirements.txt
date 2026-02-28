@@ -1,7 +1,7 @@
 fastapi==0.109.0
 uvicorn[standard]==0.27.0
 python-multipart==0.0.6
-anthropic==0.18.0
+anthropic>=0.49.0
 sqlalchemy==2.0.25
 alembic==1.13.1
 psycopg2-binary==2.9.9
@@ -25,3 +25,4 @@ pytest-mock==3.12.0
 black==24.1.1
 flake8==7.0.0
 mypy==1.8.0
+fakeredis[lua]==2.21.0

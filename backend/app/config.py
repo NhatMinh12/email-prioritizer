@@ -30,6 +30,11 @@ class Settings(BaseSettings):
 
     cache_ttl: int = Field(default=604800, alias="CACHE_TTL")  # 7 days
 
+    classification_model: str = Field(
+        default="claude-sonnet-4-5-20250514",
+        alias="CLASSIFICATION_MODEL",
+    )
+
     @field_validator("allowed_origins", mode="before")
     @classmethod
     def parse_allowed_origins(cls, v: object) -> list[str]:
