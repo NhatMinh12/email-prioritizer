@@ -1,6 +1,13 @@
-from fastapi import FastAPI
+import logging
+
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+
+from app.api import auth, emails, preferences
 from app.config import settings
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="Email Prioritizer API",
@@ -16,10 +23,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Register routers
+app.include_router(auth.router, prefix="/auth", tags=["auth"])
+app.include_router(
+    emails.router,
+    prefix=f"{settings.api_v1_prefix}/emails",
+    tags=["emails"],
+)
+app.include_router(
+    preferences.router,
+    prefix=f"{settings.api_v1_prefix}/preferences",
+    tags=["preferences"],
+)
+
 
 @app.get("/")
-async def root():
-    """Health check endpoint"""
+def root():
+    """Health check endpoint."""
     return {
         "status": "ok",
         "service": "Email Prioritizer API",
@@ -29,17 +49,18 @@ async def root():
 
 
 @app.get("/health")
-async def health_check():
-    """Detailed health check endpoint"""
+def health_check():
+    """Detailed health check endpoint."""
     return {
         "status": "healthy",
-        "database": "not_configured",
-        "redis": "not_configured",
     }
 
 
-# TODO: Import and include routers when created
-# from app.api import auth, emails, preferences
-# app.include_router(auth.router, prefix=f"{settings.api_v1_prefix}/auth", tags=["auth"])
-# app.include_router(emails.router, prefix=f"{settings.api_v1_prefix}/emails", tags=["emails"])
-# app.include_router(preferences.router, prefix=f"{settings.api_v1_prefix}/preferences", tags=["preferences"])
+@app.exception_handler(Exception)
+def unhandled_exception_handler(request: Request, exc: Exception):
+    """Catch-all handler for unhandled exceptions."""
+    logger.error("Unhandled exception on %s: %s", request.url.path, exc)
+    return JSONResponse(
+        status_code=500,
+        content={"detail": "Internal server error"},
+    )
