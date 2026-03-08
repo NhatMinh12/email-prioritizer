@@ -1,5 +1,6 @@
 """Pydantic schemas for request/response validation."""
 
+from app.schemas.auth import LoginResponse, TokenResponse, UserInfo  # noqa: F401
 from app.schemas.classification import (  # noqa: F401
     ClassificationFeedback,
     ClassificationResponse,

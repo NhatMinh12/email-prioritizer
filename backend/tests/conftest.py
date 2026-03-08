@@ -7,11 +7,14 @@ from unittest.mock import MagicMock
 import anthropic
 import fakeredis
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_cache_service, get_claude_service, get_current_user
 from app.config import settings
-from app.db.database import Base
+from app.db.database import Base, get_db
+from app.main import app
 from app.models import (
     Classification,
     Email,
@@ -20,6 +23,7 @@ from app.models import (
     User,
     UserPreference,
 )
+from app.services.auth_service import create_access_token
 from app.services.cache_service import CacheService
 from app.services.classifier import EmailClassifier
 from app.services.claude_service import ClaudeService
@@ -193,3 +197,54 @@ def email_factory(db_session, sample_user):
         return emails
 
     return _create
+
+
+# --- API test fixtures ---
+
+
+@pytest.fixture()
+def client(db_session: Session) -> TestClient:
+    """FastAPI TestClient with DB session override (no auth)."""
+
+    def _override_get_db():
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def authenticated_client(
+    db_session: Session, sample_user: User
+) -> TestClient:
+    """FastAPI TestClient with auth and DB session overridden.
+
+    The `get_current_user` dependency returns `sample_user`.
+    """
+
+    def _override_get_db():
+        yield db_session
+
+    def _override_get_current_user():
+        return sample_user
+
+    def _override_get_cache_service():
+        return CacheService(redis_client=fakeredis.FakeRedis())
+
+    def _override_get_claude_service():
+        return ClaudeService(client=MagicMock(spec=anthropic.Anthropic))
+
+    app.dependency_overrides[get_db] = _override_get_db
+    app.dependency_overrides[get_current_user] = _override_get_current_user
+    app.dependency_overrides[get_cache_service] = _override_get_cache_service
+    app.dependency_overrides[get_claude_service] = _override_get_claude_service
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture()
+def auth_headers(sample_user: User) -> dict:
+    """Valid JWT Bearer token headers for the sample_user."""
+    token = create_access_token(sample_user.id, sample_user.email)
+    return {"Authorization": f"Bearer {token}"}
