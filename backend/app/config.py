@@ -30,6 +30,11 @@ class Settings(BaseSettings):
 
     cache_ttl: int = Field(default=604800, alias="CACHE_TTL")  # 7 days
 
+    jwt_algorithm: str = Field(default="HS256", alias="JWT_ALGORITHM")
+    jwt_access_token_expire_minutes: int = Field(
+        default=1440, alias="JWT_ACCESS_TOKEN_EXPIRE_MINUTES"
+    )  # 24 hours
+
     classification_model: str = Field(
         default="claude-sonnet-4-5-20250514",
         alias="CLASSIFICATION_MODEL",
