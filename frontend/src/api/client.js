@@ -1,11 +1,10 @@
 import axios from 'axios'
 
 const apiClient = axios.create({
-  baseURL: '/api',
+  baseURL: '/',
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true,
 })
 
 // Request interceptor for adding auth token
@@ -17,18 +16,18 @@ apiClient.interceptors.request.use(
     }
     return config
   },
-  (error) => {
-    return Promise.reject(error)
-  }
+  (error) => Promise.reject(error)
 )
 
-// Response interceptor for error handling
+// Response interceptor for 401 handling.
+// Dispatches a custom event so AuthContext can trigger a React Router
+// redirect instead of a full page reload.
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('authToken')
-      window.location.href = '/login'
+      window.dispatchEvent(new Event('auth:logout'))
     }
     return Promise.reject(error)
   }
