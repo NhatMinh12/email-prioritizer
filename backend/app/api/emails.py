@@ -22,6 +22,7 @@ from app.services.cache_service import CacheService
 from app.services.classifier import EmailClassifier
 from app.services.claude_service import ClaudeService
 from app.services.gmail_service import GmailService
+from app.services.oauth_service import OAuthError
 
 logger = logging.getLogger(__name__)
 
@@ -103,7 +104,19 @@ def sync_emails(
     Fetches new emails and stores them in the database,
     deduplicating by gmail_id.
     """
-    raw_emails = gmail_service.fetch_emails(current_user.id)
+    try:
+        raw_emails = gmail_service.fetch_emails(current_user.id)
+    except OAuthError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Gmail re-authentication required",
+        )
+    except Exception as exc:
+        logger.error("Gmail sync failed for user %s: %s", current_user.email, exc)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Failed to fetch emails from Gmail",
+        )
 
     new_count = 0
     for raw in raw_emails:

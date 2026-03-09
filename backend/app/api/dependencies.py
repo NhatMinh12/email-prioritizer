@@ -16,6 +16,11 @@ from app.services.auth_service import verify_access_token
 from app.services.cache_service import CacheService
 from app.services.claude_service import ClaudeService
 from app.services.gmail_service import GmailService
+from app.services.oauth_service import (
+    OAuthError,
+    build_credentials,
+    refresh_credentials_if_expired,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +66,19 @@ def get_claude_service() -> ClaudeService:
     return ClaudeService(client=client)
 
 
-def get_gmail_service() -> GmailService:
-    """Create a GmailService (stub for now)."""
-    return GmailService()
+def get_gmail_service(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> GmailService:
+    """Create a GmailService with the current user's OAuth credentials."""
+    try:
+        credentials = build_credentials(current_user)
+        credentials = refresh_credentials_if_expired(credentials, current_user, db)
+    except OAuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Gmail authentication required: {exc}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    return GmailService(credentials=credentials)

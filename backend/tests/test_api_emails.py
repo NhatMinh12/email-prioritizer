@@ -12,6 +12,7 @@ from app.main import app
 from app.models import Classification, Email, PriorityLevel, UrgencyLevel, User
 from app.schemas.claude import SingleEmailClassification
 from app.services.gmail_service import GmailService
+from app.services.oauth_service import OAuthError
 
 
 class TestListEmails:
@@ -189,10 +190,14 @@ class TestGetEmail:
 
 
 class TestSyncEmails:
-    def test_sync_with_stub_returns_zero(
+    def test_sync_empty_returns_zero(
         self, authenticated_client: TestClient, sample_user: User
     ):
-        """Stub Gmail service returns empty list → zero synced."""
+        """Gmail service returns empty list → zero synced."""
+        mock_gmail = MagicMock(spec=GmailService)
+        mock_gmail.fetch_emails.return_value = []
+        app.dependency_overrides[get_gmail_service] = lambda: mock_gmail
+
         response = authenticated_client.post("/api/emails/sync")
         assert response.status_code == 200
         assert response.json()["synced"] == 0
@@ -221,9 +226,6 @@ class TestSyncEmails:
         assert response.status_code == 200
         assert response.json()["synced"] == 1
 
-        # Clean up override
-        app.dependency_overrides.pop(get_gmail_service, None)
-
     def test_sync_deduplicates_by_gmail_id(
         self,
         authenticated_client: TestClient,
@@ -245,7 +247,29 @@ class TestSyncEmails:
         assert response.status_code == 200
         assert response.json()["synced"] == 0
 
-        app.dependency_overrides.pop(get_gmail_service, None)
+    def test_sync_oauth_error_returns_401(
+        self, authenticated_client: TestClient, sample_user: User
+    ):
+        """OAuthError during sync returns 401."""
+        mock_gmail = MagicMock(spec=GmailService)
+        mock_gmail.fetch_emails.side_effect = OAuthError("Token revoked")
+        app.dependency_overrides[get_gmail_service] = lambda: mock_gmail
+
+        response = authenticated_client.post("/api/emails/sync")
+        assert response.status_code == 401
+        assert "re-authentication" in response.json()["detail"].lower()
+
+    def test_sync_gmail_api_error_returns_502(
+        self, authenticated_client: TestClient, sample_user: User
+    ):
+        """General Gmail API failure returns 502."""
+        mock_gmail = MagicMock(spec=GmailService)
+        mock_gmail.fetch_emails.side_effect = RuntimeError("API unavailable")
+        app.dependency_overrides[get_gmail_service] = lambda: mock_gmail
+
+        response = authenticated_client.post("/api/emails/sync")
+        assert response.status_code == 502
+        assert "Failed to fetch" in response.json()["detail"]
 
     def test_sync_requires_auth(self, client: TestClient):
         response = client.post("/api/emails/sync")

@@ -1,6 +1,7 @@
 """Authentication API routes."""
 
 import logging
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
@@ -11,26 +12,31 @@ from app.api.dependencies import get_current_user
 from app.models import User
 from app.schemas.auth import LoginResponse, TokenResponse, UserInfo
 from app.services.auth_service import create_access_token
+from app.services.oauth_service import OAuthError, exchange_code_for_tokens
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+_LOGIN_SCOPES = (
+    "https://www.googleapis.com/auth/gmail.readonly"
+    " openid"
+    " email"
+    " profile"
+)
+
 
 @router.get("/login", response_model=LoginResponse)
 def login():
-    """Return the OAuth authorization URL.
-
-    Stub: returns a placeholder URL. Real implementation (Func 3b)
-    will build a proper Google OAuth2 authorization URL.
-    """
+    """Return the Google OAuth2 authorization URL."""
     authorization_url = (
         "https://accounts.google.com/o/oauth2/v2/auth"
         f"?client_id={settings.gmail_client_id}"
-        f"&redirect_uri={settings.gmail_redirect_uri}"
+        f"&redirect_uri={quote(settings.gmail_redirect_uri, safe='')}"
         "&response_type=code"
-        "&scope=https://www.googleapis.com/auth/gmail.readonly"
+        f"&scope={quote(_LOGIN_SCOPES, safe='')}"
         "&access_type=offline"
+        "&prompt=consent"
     )
     return LoginResponse(authorization_url=authorization_url)
 
@@ -38,25 +44,38 @@ def login():
 @router.get("/callback", response_model=TokenResponse)
 def auth_callback(
     code: str = Query(..., description="OAuth authorization code"),
-    email: str = Query(..., description="User email (stub param for 3a)"),
     db: Session = Depends(get_db),
 ):
-    """Exchange OAuth code for tokens and issue a JWT.
+    """Exchange an OAuth authorization code for tokens and issue a JWT.
 
-    Stub: accepts any code, creates/updates user with the provided email,
-    and returns a JWT. Real implementation (Func 3b) will exchange the
-    code with Google for OAuth tokens.
+    Exchanges the code with Google for access/refresh tokens, extracts
+    the user's email from the id_token, and creates or updates the user.
     """
+    try:
+        tokens = exchange_code_for_tokens(code)
+    except OAuthError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        )
+
     # Look up or create user
-    user = db.query(User).filter(User.email == email).first()
+    user = db.query(User).filter(User.email == tokens.email).first()
     if user is None:
-        user = User(email=email, oauth_token=code)
+        user = User(
+            email=tokens.email,
+            oauth_access_token=tokens.access_token,
+            oauth_refresh_token=tokens.refresh_token,
+            oauth_token_expiry=tokens.expiry,
+        )
         db.add(user)
         db.commit()
         db.refresh(user)
         logger.info("Created new user: %s", user.email)
     else:
-        user.oauth_token = code
+        user.oauth_access_token = tokens.access_token
+        user.oauth_refresh_token = tokens.refresh_token
+        user.oauth_token_expiry = tokens.expiry
         db.commit()
         db.refresh(user)
         logger.info("Updated existing user: %s", user.email)

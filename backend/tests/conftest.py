@@ -1,7 +1,7 @@
 """Shared test fixtures."""
 
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import anthropic
@@ -11,7 +11,12 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from app.api.dependencies import get_cache_service, get_claude_service, get_current_user
+from app.api.dependencies import (
+    get_cache_service,
+    get_claude_service,
+    get_current_user,
+    get_gmail_service,
+)
 from app.config import settings
 from app.db.database import Base, get_db
 from app.main import app
@@ -27,6 +32,7 @@ from app.services.auth_service import create_access_token
 from app.services.cache_service import CacheService
 from app.services.classifier import EmailClassifier
 from app.services.claude_service import ClaudeService
+from app.services.gmail_service import GmailService
 
 # Use the same database URL but with a test-specific database name approach:
 # We use the main DB for tests but wrap each test in a transaction rollback.
@@ -62,6 +68,9 @@ def sample_user(db_session: Session) -> User:
         id=uuid.uuid4(),
         email="test@example.com",
         oauth_token="test_oauth_token",
+        oauth_access_token="test_access_token",
+        oauth_refresh_token="test_refresh_token",
+        oauth_token_expiry=datetime.now(timezone.utc) + timedelta(hours=1),
     )
     db_session.add(user)
     db_session.flush()
@@ -221,6 +230,7 @@ def authenticated_client(
     """FastAPI TestClient with auth and DB session overridden.
 
     The `get_current_user` dependency returns `sample_user`.
+    Gmail, Claude, and Cache services are mocked.
     """
 
     def _override_get_db():
@@ -235,10 +245,14 @@ def authenticated_client(
     def _override_get_claude_service():
         return ClaudeService(client=MagicMock(spec=anthropic.Anthropic))
 
+    def _override_get_gmail_service():
+        return MagicMock(spec=GmailService)
+
     app.dependency_overrides[get_db] = _override_get_db
     app.dependency_overrides[get_current_user] = _override_get_current_user
     app.dependency_overrides[get_cache_service] = _override_get_cache_service
     app.dependency_overrides[get_claude_service] = _override_get_claude_service
+    app.dependency_overrides[get_gmail_service] = _override_get_gmail_service
     yield TestClient(app)
     app.dependency_overrides.clear()
 
