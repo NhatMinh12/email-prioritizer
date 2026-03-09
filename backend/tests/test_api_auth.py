@@ -50,7 +50,7 @@ class TestLoginEndpoint:
 
 class TestCallbackEndpoint:
     @patch("app.api.auth.exchange_code_for_tokens")
-    def test_callback_creates_user_and_returns_jwt(
+    def test_callback_creates_user_and_redirects_with_token(
         self, mock_exchange, client: TestClient
     ):
         mock_exchange.return_value = OAuthTokens(
@@ -60,15 +60,19 @@ class TestCallbackEndpoint:
             email="new@example.com",
         )
 
-        response = client.get("/auth/callback", params={"code": "test_code"})
+        response = client.get(
+            "/auth/callback",
+            params={"code": "test_code"},
+            follow_redirects=False,
+        )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert "access_token" in data
-        assert data["token_type"] == "bearer"
+        assert response.status_code == 302
+        location = response.headers["location"]
+        assert "/auth/callback?" in location
+        assert "token=" in location
 
     @patch("app.api.auth.exchange_code_for_tokens")
-    def test_callback_with_existing_user_updates_tokens(
+    def test_callback_with_existing_user_redirects_with_token(
         self, mock_exchange, client: TestClient, sample_user: User
     ):
         mock_exchange.return_value = OAuthTokens(
@@ -78,21 +82,29 @@ class TestCallbackEndpoint:
             email=sample_user.email,
         )
 
-        response = client.get("/auth/callback", params={"code": "new_code"})
+        response = client.get(
+            "/auth/callback",
+            params={"code": "new_code"},
+            follow_redirects=False,
+        )
 
-        assert response.status_code == 200
-        assert "access_token" in response.json()
+        assert response.status_code == 302
+        assert "token=" in response.headers["location"]
 
     @patch("app.api.auth.exchange_code_for_tokens")
-    def test_callback_invalid_code_returns_400(
+    def test_callback_invalid_code_redirects_with_error(
         self, mock_exchange, client: TestClient
     ):
         mock_exchange.side_effect = OAuthError("Invalid authorization code")
 
-        response = client.get("/auth/callback", params={"code": "bad_code"})
+        response = client.get(
+            "/auth/callback",
+            params={"code": "bad_code"},
+            follow_redirects=False,
+        )
 
-        assert response.status_code == 400
-        assert "Invalid" in response.json()["detail"]
+        assert response.status_code == 302
+        assert "error=" in response.headers["location"]
 
     def test_callback_missing_code_returns_422(self, client: TestClient):
         response = client.get("/auth/callback")

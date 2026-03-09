@@ -1,9 +1,10 @@
 """Authentication API routes."""
 
 import logging
-from urllib.parse import quote
+from urllib.parse import quote, urlencode
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -41,7 +42,7 @@ def login():
     return LoginResponse(authorization_url=authorization_url)
 
 
-@router.get("/callback", response_model=TokenResponse)
+@router.get("/callback", response_class=RedirectResponse)
 def auth_callback(
     code: str = Query(..., description="OAuth authorization code"),
     db: Session = Depends(get_db),
@@ -50,13 +51,17 @@ def auth_callback(
 
     Exchanges the code with Google for access/refresh tokens, extracts
     the user's email from the id_token, and creates or updates the user.
+    Redirects to the frontend with the JWT in the query string.
     """
+    frontend_url = settings.allowed_origins[0]  # e.g. http://localhost:3000
+
     try:
         tokens = exchange_code_for_tokens(code)
     except OAuthError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
+        params = urlencode({"error": str(exc)})
+        return RedirectResponse(
+            url=f"{frontend_url}/auth/callback?{params}",
+            status_code=status.HTTP_302_FOUND,
         )
 
     # Look up or create user
@@ -81,7 +86,11 @@ def auth_callback(
         logger.info("Updated existing user: %s", user.email)
 
     access_token = create_access_token(user.id, user.email)
-    return TokenResponse(access_token=access_token)
+    params = urlencode({"token": access_token})
+    return RedirectResponse(
+        url=f"{frontend_url}/auth/callback?{params}",
+        status_code=status.HTTP_302_FOUND,
+    )
 
 
 @router.post("/logout", status_code=status.HTTP_200_OK)
