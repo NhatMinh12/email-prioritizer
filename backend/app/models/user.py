@@ -24,7 +24,12 @@ class User(TimestampMixin, Base):
     email: Mapped[str] = mapped_column(
         String(320), unique=True, nullable=False, index=True
     )
-    oauth_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    oauth_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)  # Deprecated (stub-era)
+    oauth_access_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    oauth_refresh_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    oauth_token_expiry: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     # Relationships
     preferences: Mapped[Optional["UserPreference"]] = relationship(
