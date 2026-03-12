@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Email Prioritizer Settings</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      color: #111827;
+      background: #f9fafb;
+      padding: 32px;
+    }
+
+    .container {
+      max-width: 480px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 20px;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .field {
+      margin-bottom: 20px;
+    }
+
+    label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #374151;
+      margin-bottom: 6px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+
+    input[type="text"]:focus {
+      outline: none;
+      border-color: #2563eb;
+      box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
+    }
+
+    .checkbox-field {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .checkbox-field label {
+      margin-bottom: 0;
+    }
+
+    .help-text {
+      font-size: 12px;
+      color: #6b7280;
+      margin-top: 4px;
+    }
+
+    .btn {
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #2563eb;
+      color: white;
+    }
+
+    .btn:hover { background: #1d4ed8; }
+
+    .link {
+      display: inline-block;
+      margin-top: 24px;
+      color: #2563eb;
+      font-size: 13px;
+      text-decoration: none;
+    }
+
+    .link:hover { text-decoration: underline; }
+
+    #status {
+      margin-top: 12px;
+      font-size: 13px;
+      color: #059669;
+    }
+
+    #status.hidden { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Email Prioritizer Settings</h1>
+
+    <div class="field">
+      <label for="api-url">API Server URL</label>
+      <input type="text" id="api-url" placeholder="http://localhost:8000">
+      <p class="help-text">The URL of your Email Prioritizer backend server.</p>
+    </div>
+
+    <div class="field">
+      <div class="checkbox-field">
+        <input type="checkbox" id="badges-enabled" checked>
+        <label for="badges-enabled">Show priority badges in Gmail</label>
+      </div>
+      <p class="help-text">Display colored dots next to emails in Gmail's inbox view.</p>
+    </div>
+
+    <button class="btn" id="save-btn">Save Settings</button>
+    <p id="status" class="hidden">Settings saved.</p>
+
+    <a class="link" id="full-settings-link" href="http://localhost:3000/settings" target="_blank">
+      Open full settings in Email Prioritizer app &rarr;
+    </a>
+  </div>
+
+  <script src="options.js" type="module"></script>
+</body>
+</html>
