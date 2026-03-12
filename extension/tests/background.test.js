@@ -51,78 +51,32 @@ describe('handleMessage', () => {
   });
 
   describe('LOGIN', () => {
-    it('opens a tab with the authorization URL', async () => {
-      // Mock /auth/login response (raw fetch, not apiFetch)
+    it('opens a tab with the authorization URL and stores the tab ID', async () => {
       global.fetch.mockResolvedValue({
         ok: true,
         json: () => Promise.resolve({ authorization_url: 'https://accounts.google.com/o/oauth2' }),
       });
 
-      // The startLogin function adds a tabs.onUpdated listener
-      // Simulate the callback by capturing and invoking the listener
-      let capturedListener;
-      chrome.tabs.onUpdated.addListener.mockImplementation((fn) => {
-        capturedListener = fn;
-      });
-
-      const loginPromise = handleMessage({ type: MSG.LOGIN });
-
-      // Simulate the OAuth redirect coming back with a token
-      await vi.waitFor(() => expect(capturedListener).toBeDefined());
-      capturedListener(1, { url: 'http://localhost:3000/auth/callback?token=new-jwt' });
-
-      const result = await loginPromise;
+      const result = await handleMessage({ type: MSG.LOGIN });
 
       expect(chrome.tabs.create).toHaveBeenCalledWith({
         url: 'https://accounts.google.com/o/oauth2',
       });
-      expect(result).toEqual({ success: true });
+      expect(result).toEqual({ success: true, pending: true });
+
+      // Verify the tab ID was persisted so the top-level listener can match it
+      const stored = await chrome.storage.local.get(STORAGE_KEYS.LOGIN_TAB_ID);
+      expect(stored[STORAGE_KEYS.LOGIN_TAB_ID]).toBe(1); // mock returns { id: 1 }
     });
 
-    it('returns error when OAuth callback has error', async () => {
+    it('throws when /auth/login request fails', async () => {
       global.fetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ authorization_url: 'https://accounts.google.com' }),
+        ok: false,
+        status: 500,
+        json: () => Promise.resolve({}),
       });
 
-      let capturedListener;
-      chrome.tabs.onUpdated.addListener.mockImplementation((fn) => {
-        capturedListener = fn;
-      });
-
-      const loginPromise = handleMessage({ type: MSG.LOGIN });
-
-      await vi.waitFor(() => expect(capturedListener).toBeDefined());
-      capturedListener(1, { url: 'http://localhost:3000/auth/callback?error=access_denied' });
-
-      const result = await loginPromise;
-      expect(result).toEqual({ error: 'access_denied' });
-    });
-
-    it('ignores tab updates that are not the callback URL', async () => {
-      global.fetch.mockResolvedValue({
-        ok: true,
-        json: () => Promise.resolve({ authorization_url: 'https://accounts.google.com' }),
-      });
-
-      let capturedListener;
-      chrome.tabs.onUpdated.addListener.mockImplementation((fn) => {
-        capturedListener = fn;
-      });
-
-      const loginPromise = handleMessage({ type: MSG.LOGIN });
-
-      await vi.waitFor(() => expect(capturedListener).toBeDefined());
-
-      // This should be ignored (not the callback URL)
-      capturedListener(1, { url: 'https://accounts.google.com/signin' });
-      // This should be ignored (no url in changeInfo)
-      capturedListener(1, { status: 'loading' });
-      // This is the real callback
-      capturedListener(1, { url: 'http://localhost:3000/auth/callback?token=jwt' });
-
-      const result = await loginPromise;
-      expect(result).toEqual({ success: true });
+      await expect(handleMessage({ type: MSG.LOGIN })).rejects.toThrow('Failed to get login URL');
     });
   });
 

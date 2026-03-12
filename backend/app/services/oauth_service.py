@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
+import requests as http_requests
 from google.auth.exceptions import RefreshError
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
@@ -80,14 +81,30 @@ def exchange_code_for_tokens(code: str) -> OAuthTokens:
             "No refresh token received. Ensure prompt=consent is set in the authorization URL."
         )
 
-    # Extract email from the id_token
+    # Extract email: prefer id_token, fall back to userinfo endpoint.
+    # id_token can be None when google-auth can't decode the JWT
+    # (missing optional crypto deps, library version mismatch, etc.).
+    email = None
     id_token_data = credentials.id_token
-    if not id_token_data or not isinstance(id_token_data, dict):
-        raise OAuthError("No id_token received; cannot determine user email.")
+    if id_token_data and isinstance(id_token_data, dict):
+        email = id_token_data.get("email")
 
-    email = id_token_data.get("email")
     if not email:
-        raise OAuthError("Email not found in id_token.")
+        logger.info("id_token unavailable or missing email; falling back to userinfo endpoint")
+        try:
+            resp = http_requests.get(
+                "https://www.googleapis.com/oauth2/v3/userinfo",
+                headers={"Authorization": f"Bearer {credentials.token}"},
+                timeout=10,
+            )
+            resp.raise_for_status()
+            email = resp.json().get("email")
+        except Exception as exc:
+            logger.error("Userinfo request failed: %s", exc)
+            raise OAuthError("Failed to determine user email.") from exc
+
+    if not email:
+        raise OAuthError("Email not found in token response or userinfo.")
 
     return OAuthTokens(
         access_token=credentials.token,

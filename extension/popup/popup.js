@@ -66,17 +66,17 @@ $('#login-btn').addEventListener('click', async () => {
   try {
     const result = await chrome.runtime.sendMessage({ type: MSG.LOGIN });
 
-    if (result.success) {
-      const state = await chrome.runtime.sendMessage({ type: MSG.GET_AUTH_STATE });
-      $('#user-email').textContent = state.user?.email || '';
-      showView('main-view');
-      await loadStats();
-    } else {
-      showStatus(result.error || 'Login failed', true);
+    if (result.error) {
+      showStatus(result.error, true);
+      setButtonLoading(btn, false);
     }
+    // result.pending means a Google OAuth tab was opened.
+    // The popup will close when the tab opens (Chrome behavior).
+    // The top-level tabs.onUpdated listener in the service worker
+    // captures the token. When the user reopens the popup, init()
+    // will detect the authenticated state.
   } catch (err) {
     showStatus(err.message || 'Login failed', true);
-  } finally {
     setButtonLoading(btn, false);
   }
 });

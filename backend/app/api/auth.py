@@ -44,7 +44,8 @@ def login():
 
 @router.get("/callback", response_class=RedirectResponse)
 def auth_callback(
-    code: str = Query(..., description="OAuth authorization code"),
+    code: str = Query(None, description="OAuth authorization code"),
+    error: str = Query(None, description="OAuth error code from Google"),
     db: Session = Depends(get_db),
 ):
     """Exchange an OAuth authorization code for tokens and issue a JWT.
@@ -54,6 +55,20 @@ def auth_callback(
     Redirects to the frontend with the JWT in the query string.
     """
     frontend_url = settings.allowed_origins[0]  # e.g. http://localhost:3000
+
+    if error:
+        params = urlencode({"error": f"Google OAuth error: {error}"})
+        return RedirectResponse(
+            url=f"{frontend_url}/auth/callback?{params}",
+            status_code=status.HTTP_302_FOUND,
+        )
+
+    if not code:
+        params = urlencode({"error": "Missing authorization code"})
+        return RedirectResponse(
+            url=f"{frontend_url}/auth/callback?{params}",
+            status_code=status.HTTP_302_FOUND,
+        )
 
     try:
         tokens = exchange_code_for_tokens(code)

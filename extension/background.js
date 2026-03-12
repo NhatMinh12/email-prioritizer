@@ -7,6 +7,41 @@ const classificationCache = new Map();
 // Expose for testing
 export { classificationCache };
 
+// Top-level listener: survives service worker restarts in MV3.
+// Only intercepts the specific tab opened by startLogin() (stored in
+// chrome.storage.local) so it doesn't interfere with the frontend app.
+chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
+  if (!changeInfo.url) return;
+
+  // Check asynchronously whether this tab is the extension's login tab
+  chrome.storage.local.get(STORAGE_KEYS.LOGIN_TAB_ID).then((result) => {
+    const loginTabId = result[STORAGE_KEYS.LOGIN_TAB_ID];
+    if (loginTabId == null || tabId !== loginTabId) return;
+
+    let url;
+    try {
+      url = new URL(changeInfo.url);
+    } catch {
+      return;
+    }
+
+    if (!url.pathname.endsWith(FRONTEND_CALLBACK_PATH)) return;
+
+    const token = url.searchParams.get('token');
+    const error = url.searchParams.get('error');
+
+    if (token || error) {
+      // Clean up the login tab marker
+      chrome.storage.local.remove(STORAGE_KEYS.LOGIN_TAB_ID);
+      chrome.tabs.remove(tabId).catch(() => {});
+
+      if (token) {
+        chrome.storage.local.set({ [STORAGE_KEYS.TOKEN]: token });
+      }
+    }
+  });
+});
+
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   handleMessage(message, sender)
     .then(sendResponse)
@@ -63,41 +98,14 @@ async function startLogin() {
   }
   const { authorization_url } = await response.json();
 
+  // Open the OAuth page in a new tab. The top-level tabs.onUpdated listener
+  // will capture the callback token. The popup will close when this tab opens
+  // (standard Chrome behavior), so we return immediately.
+  // Persist the tab ID so the listener (and service worker restarts) know
+  // which tab to intercept — avoids hijacking the frontend's own callback.
   const tab = await chrome.tabs.create({ url: authorization_url });
-
-  return new Promise((resolve) => {
-    const listener = (tabId, changeInfo) => {
-      if (tabId !== tab.id || !changeInfo.url) return;
-
-      let url;
-      try {
-        url = new URL(changeInfo.url);
-      } catch {
-        return;
-      }
-
-      // Check if this is the callback redirect (frontend callback path with token or error)
-      if (!url.pathname.endsWith(FRONTEND_CALLBACK_PATH)) return;
-
-      const token = url.searchParams.get('token');
-      const error = url.searchParams.get('error');
-
-      if (token || error) {
-        chrome.tabs.onUpdated.removeListener(listener);
-        chrome.tabs.remove(tabId).catch(() => {});
-
-        if (token) {
-          chrome.storage.local.set({ [STORAGE_KEYS.TOKEN]: token }).then(() => {
-            resolve({ success: true });
-          });
-        } else {
-          resolve({ error });
-        }
-      }
-    };
-
-    chrome.tabs.onUpdated.addListener(listener);
-  });
+  await chrome.storage.local.set({ [STORAGE_KEYS.LOGIN_TAB_ID]: tab.id });
+  return { success: true, pending: true };
 }
 
 async function logout() {

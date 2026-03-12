@@ -64,9 +64,59 @@ class TestExchangeCodeForTokens:
         with pytest.raises(OAuthError, match="No refresh token"):
             exchange_code_for_tokens("code_no_refresh")
 
+    @patch("app.services.oauth_service.http_requests")
     @patch("app.services.oauth_service.Flow")
-    def test_no_id_token_raises_oauth_error(self, mock_flow_cls):
-        """Missing id_token raises OAuthError."""
+    def test_no_id_token_falls_back_to_userinfo(self, mock_flow_cls, mock_http):
+        """Missing id_token falls back to userinfo endpoint."""
+        mock_flow = MagicMock()
+        mock_flow_cls.from_client_config.return_value = mock_flow
+
+        mock_creds = MagicMock()
+        mock_creds.token = "access_123"
+        mock_creds.refresh_token = "refresh_456"
+        mock_creds.expiry = datetime(2026, 4, 1, tzinfo=timezone.utc)
+        mock_creds.id_token = None
+        mock_flow.credentials = mock_creds
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"email": "fallback@example.com"}
+        mock_http.get.return_value = mock_resp
+
+        result = exchange_code_for_tokens("code_no_id")
+
+        assert result.email == "fallback@example.com"
+        mock_http.get.assert_called_once_with(
+            "https://www.googleapis.com/oauth2/v3/userinfo",
+            headers={"Authorization": "Bearer access_123"},
+            timeout=10,
+        )
+
+    @patch("app.services.oauth_service.http_requests")
+    @patch("app.services.oauth_service.Flow")
+    def test_no_email_in_id_token_falls_back_to_userinfo(self, mock_flow_cls, mock_http):
+        """id_token without email claim falls back to userinfo endpoint."""
+        mock_flow = MagicMock()
+        mock_flow_cls.from_client_config.return_value = mock_flow
+
+        mock_creds = MagicMock()
+        mock_creds.token = "access_123"
+        mock_creds.refresh_token = "refresh_456"
+        mock_creds.expiry = datetime(2026, 4, 1, tzinfo=timezone.utc)
+        mock_creds.id_token = {"sub": "123"}  # no email
+        mock_flow.credentials = mock_creds
+
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"email": "fallback@example.com"}
+        mock_http.get.return_value = mock_resp
+
+        result = exchange_code_for_tokens("code_no_email")
+
+        assert result.email == "fallback@example.com"
+
+    @patch("app.services.oauth_service.http_requests")
+    @patch("app.services.oauth_service.Flow")
+    def test_userinfo_fallback_failure_raises_oauth_error(self, mock_flow_cls, mock_http):
+        """When both id_token and userinfo fail, raises OAuthError."""
         mock_flow = MagicMock()
         mock_flow_cls.from_client_config.return_value = mock_flow
 
@@ -76,23 +126,10 @@ class TestExchangeCodeForTokens:
         mock_creds.id_token = None
         mock_flow.credentials = mock_creds
 
-        with pytest.raises(OAuthError, match="No id_token"):
-            exchange_code_for_tokens("code_no_id")
+        mock_http.get.side_effect = Exception("Network error")
 
-    @patch("app.services.oauth_service.Flow")
-    def test_no_email_in_id_token_raises_oauth_error(self, mock_flow_cls):
-        """id_token without email claim raises OAuthError."""
-        mock_flow = MagicMock()
-        mock_flow_cls.from_client_config.return_value = mock_flow
-
-        mock_creds = MagicMock()
-        mock_creds.token = "access_123"
-        mock_creds.refresh_token = "refresh_456"
-        mock_creds.id_token = {"sub": "123"}  # no email
-        mock_flow.credentials = mock_creds
-
-        with pytest.raises(OAuthError, match="Email not found"):
-            exchange_code_for_tokens("code_no_email")
+        with pytest.raises(OAuthError, match="Failed to determine user email"):
+            exchange_code_for_tokens("code_fail")
 
 
 class TestBuildCredentials:

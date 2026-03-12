@@ -106,9 +106,21 @@ class TestCallbackEndpoint:
         assert response.status_code == 302
         assert "error=" in response.headers["location"]
 
-    def test_callback_missing_code_returns_422(self, client: TestClient):
-        response = client.get("/auth/callback")
-        assert response.status_code == 422
+    def test_callback_missing_code_redirects_with_error(self, client: TestClient):
+        response = client.get("/auth/callback", follow_redirects=False)
+        assert response.status_code == 302
+        assert "error=" in response.headers["location"]
+        assert "Missing+authorization+code" in response.headers["location"]
+
+    def test_callback_google_error_redirects_with_error(self, client: TestClient):
+        response = client.get(
+            "/auth/callback",
+            params={"error": "access_denied"},
+            follow_redirects=False,
+        )
+        assert response.status_code == 302
+        assert "error=" in response.headers["location"]
+        assert "access_denied" in response.headers["location"]
 
 
 class TestLogoutEndpoint:

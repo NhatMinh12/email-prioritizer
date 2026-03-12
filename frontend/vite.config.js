@@ -15,7 +15,17 @@ export default defineConfig({
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
-      '/auth': {
+      // Only proxy backend auth endpoints; let the frontend handle
+      // /auth/callback (the OAuth redirect landing page).
+      '/auth/login': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/auth/logout': {
+        target: 'http://localhost:8000',
+        changeOrigin: true,
+      },
+      '/auth/me': {
         target: 'http://localhost:8000',
         changeOrigin: true,
       },
