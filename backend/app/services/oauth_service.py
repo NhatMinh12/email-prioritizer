@@ -129,13 +129,20 @@ def build_credentials(user: "User") -> Credentials:  # noqa: F821
     if not user.oauth_refresh_token:
         raise OAuthError("User has no OAuth credentials. Re-authentication required.")
 
+    # Google's auth library compares expiry against a naive utcnow(),
+    # so we must strip timezone info to avoid "can't compare offset-naive
+    # and offset-aware datetimes" TypeError.
+    expiry = user.oauth_token_expiry
+    if expiry is not None and expiry.tzinfo is not None:
+        expiry = expiry.replace(tzinfo=None)
+
     return Credentials(
         token=user.oauth_access_token,
         refresh_token=user.oauth_refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=settings.gmail_client_id,
         client_secret=settings.gmail_client_secret,
-        expiry=user.oauth_token_expiry,
+        expiry=expiry,
     )
 
 

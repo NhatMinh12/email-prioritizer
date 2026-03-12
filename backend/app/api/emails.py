@@ -197,8 +197,16 @@ def classify_emails(
     )
 
     if len(emails) > 10:
+        # Capture IDs — the request's DB session will be closed by the time
+        # the background task runs, so we must re-query in a fresh session.
+        email_ids_to_classify = [e.id for e in emails]
+        user_id = current_user.id
         background_tasks.add_task(
-            _run_classification, classifier, emails, preferences, db
+            _run_classification,
+            email_ids_to_classify,
+            user_id,
+            claude_service,
+            cache_service,
         )
         return {
             "classified": 0,
@@ -216,19 +224,53 @@ def classify_emails(
 
 
 def _run_classification(
-    classifier: EmailClassifier,
-    emails: list[Email],
-    preferences: Optional[UserPreference],
-    db: Session,
+    email_ids: list[uuid.UUID],
+    user_id: uuid.UUID,
+    claude_service: ClaudeService,
+    cache_service: CacheService,
 ) -> None:
-    """Background task for classifying large batches."""
+    """Background task for classifying large batches.
+
+    Creates its own DB session since the request session is closed
+    by the time background tasks execute.
+    """
+    from app.db.database import SessionLocal
+
+    db = SessionLocal()
     try:
+        emails = (
+            db.query(Email)
+            .outerjoin(Email.classification)
+            .filter(
+                Email.id.in_(email_ids),
+                Classification.id.is_(None),
+            )
+            .all()
+        )
+
+        if not emails:
+            logger.info("Background classification: no unclassified emails remaining")
+            return
+
+        preferences = (
+            db.query(UserPreference)
+            .filter(UserPreference.user_id == user_id)
+            .first()
+        )
+
+        classifier = EmailClassifier(
+            db_session=db,
+            claude_service=claude_service,
+            cache_service=cache_service,
+        )
         classifier.classify_emails(emails, preferences)
         db.commit()
         logger.info("Background classification completed: %d emails", len(emails))
     except Exception as exc:
         logger.error("Background classification failed: %s", exc)
         db.rollback()
+    finally:
+        db.close()
 
 
 @router.post("/{email_id}/feedback", response_model=ClassificationResponse)
