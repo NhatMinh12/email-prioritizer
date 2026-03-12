@@ -1,5 +1,5 @@
 import { api, apiFetch } from './lib/api.js';
-import { MSG, STORAGE_KEYS, FRONTEND_CALLBACK_PATH } from './lib/constants.js';
+import { API_BASE_URL, MSG, STORAGE_KEYS, FRONTEND_CALLBACK_PATH } from './lib/constants.js';
 
 // In-memory classification cache: gmailId -> classification
 const classificationCache = new Map();
@@ -88,7 +88,6 @@ async function getAuthState() {
 
 async function startLogin() {
   // /auth/login is public — use raw fetch, not apiFetch (which requires token for auth header)
-  const { API_BASE_URL } = await import('./lib/constants.js');
   const baseUrlResult = await chrome.storage.local.get(STORAGE_KEYS.API_BASE_URL);
   const baseUrl = baseUrlResult[STORAGE_KEYS.API_BASE_URL] || API_BASE_URL;
 

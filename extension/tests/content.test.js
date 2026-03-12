@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { extractGmailIdsFromDOM, injectBadge, removeBadges, scanAndInject, setupObserver } from '../content/content.js';
+import { extractGmailIdsFromDOM, injectBadge, removeBadges, scanAndInject, setupObserver } from './content-exports.js';
 
 beforeEach(() => {
   resetChromeMocks();

@@ -35,7 +35,7 @@ const DEBOUNCE_MS = 300;
  * Extract Gmail thread/message IDs from the currently visible email rows.
  * Returns a Map of gmailId -> row element.
  */
-export function extractGmailIdsFromDOM() {
+function extractGmailIdsFromDOM() {
   const idMap = new Map();
 
   // Try each selector until we find rows
@@ -66,7 +66,7 @@ export function extractGmailIdsFromDOM() {
 /**
  * Inject a colored priority dot badge into a Gmail email row.
  */
-export function injectBadge(row, classification) {
+function injectBadge(row, classification) {
   // Don't double-inject
   if (row.querySelector('.ep-priority-dot')) return;
 
@@ -107,7 +107,7 @@ export function injectBadge(row, classification) {
 /**
  * Remove all injected badges from the DOM.
  */
-export function removeBadges() {
+function removeBadges() {
   const dots = document.querySelectorAll('.ep-priority-dot');
   for (const dot of dots) {
     dot.remove();
@@ -117,7 +117,7 @@ export function removeBadges() {
 /**
  * Scan visible email rows, request classifications from background, inject badges.
  */
-export async function scanAndInject() {
+async function scanAndInject() {
   const idMap = extractGmailIdsFromDOM();
   if (idMap.size === 0) return;
 
@@ -144,7 +144,7 @@ export async function scanAndInject() {
 /**
  * Set up MutationObserver to detect Gmail DOM changes and re-inject badges.
  */
-export function setupObserver() {
+function setupObserver() {
   const observer = new MutationObserver(() => {
     clearTimeout(debounceTimer);
     debounceTimer = setTimeout(scanAndInject, DEBOUNCE_MS);
@@ -180,3 +180,15 @@ function main() {
 }
 
 main();
+
+// Expose for testing — Vitest test files import from a wrapper module
+// (see tests/content-exports.js). In Chrome, this is just a no-op assignment.
+if (typeof globalThis !== 'undefined') {
+  globalThis.__epContentScript = {
+    extractGmailIdsFromDOM,
+    injectBadge,
+    removeBadges,
+    scanAndInject,
+    setupObserver,
+  };
+}
