@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=320">
+  <title>Email Prioritizer</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div id="app">
+    <div id="loading-view">
+      <div class="spinner"></div>
+    </div>
+
+    <div id="login-view" class="hidden">
+      <div class="logo">EP</div>
+      <h1>Email Prioritizer</h1>
+      <p class="subtitle">AI-powered email classification</p>
+      <button id="login-btn" class="btn btn-primary btn-full">
+        Sign in with Google
+      </button>
+    </div>
+
+    <div id="main-view" class="hidden">
+      <header>
+        <span id="user-email" class="user-email"></span>
+        <button id="logout-btn" class="btn btn-sm btn-ghost">Sign out</button>
+      </header>
+
+      <div id="stats" class="stats-grid">
+        <div class="stat-card stat-high">
+          <span class="stat-count" id="stat-high">-</span>
+          <span class="stat-label">High</span>
+        </div>
+        <div class="stat-card stat-medium">
+          <span class="stat-count" id="stat-medium">-</span>
+          <span class="stat-label">Medium</span>
+        </div>
+        <div class="stat-card stat-low">
+          <span class="stat-count" id="stat-low">-</span>
+          <span class="stat-label">Low</span>
+        </div>
+      </div>
+
+      <div id="actions" class="actions">
+        <button id="sync-btn" class="btn btn-secondary">Sync Inbox</button>
+        <button id="classify-btn" class="btn btn-primary">Classify</button>
+      </div>
+
+      <div id="status-message" class="status-message hidden"></div>
+    </div>
+  </div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+</html>
